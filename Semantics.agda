@@ -6,12 +6,16 @@ open import Process info using (Process; ArchValue)
 open import Value
 open import Data.Nat using (ℕ; _⊔_)
 open import Data.Vec as Vec using (Vec)
-open import Data.List using (List)
+open import Data.List using (List; _∷_; [])
 open import Data.Fin using (Fin)
 open import Disassembly info
 open import Data.Product using (_,_)
+open import Data.Bool
 
 import μOps info as μOps
+
+haltProcess : Process → Process
+haltProcess p = record p { halted = true }
 
 module IntraInstruction {numTemps : ℕ} where
 
@@ -23,8 +27,15 @@ module IntraInstruction {numTemps : ℕ} where
       temps    : Vec AnyValue numTemps
       sema     : List μInsn
 
+  data InsnsOf : IntraInsnProcess → μInsn → List μInsn → Set where
+    insns-of : ∀ {p} {t} {μInsn} {μInsns}
+             → InsnsOf (record { process = p; temps = t; sema = μInsn ∷ μInsns })
+                       μInsn μInsns
+
   data _↝_ : IntraInsnProcess → IntraInsnProcess → Set where
-    
+    ↝-halt : ∀ {i : IntraInsnProcess} {μOps : List μInsn}
+           → InsnsOf i halt μOps
+           → i ↝ record i { process = haltProcess (IntraInsnProcess.process i); sema = [] }
   data _↝*_ : IntraInsnProcess → IntraInsnProcess → Set where
     ↝*-nop : ∀ {i} → i ↝* i
     ↝*-extend : ∀ {i₀ i₁ i₂}
@@ -37,7 +48,7 @@ module IntraInstruction {numTemps : ℕ} where
   downgrade iip = IntraInsnProcess.process iip
 
   data Done : IntraInsnProcess → Set where
-    done-empty : ∀ {p} {t} → Done (record { process = p ; temps = t ; sema = List.[] })
+    done-empty : ∀ {p} {t} → Done (record { process = p ; temps = t ; sema = [] })
 
   data _↓_ : IntraInsnProcess → Process → Set where
     ↓-done : ∀ {i} → Done i → i ↓ (IntraInsnProcess.process i)
