@@ -10,7 +10,12 @@ open import Data.List using (List; _∷_)
 open import Value
 import Data.Maybe as Maybe
 
-module Memory (width : ℕ) where
+open import Info
+open import Arch
+
+module Memory  where
+
+  width = ArchInfo.wordSize info
 
   byteWidth : ℕ
   byteWidth = 8

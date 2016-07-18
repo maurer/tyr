@@ -1,12 +1,13 @@
 open import Arch using (ArchInfo)
+open import Info
 open import Data.Nat using (ℕ; suc)
 open import Data.Fin using (Fin)
 open import Data.BitVector using (BitVector)
 open import Data.List
 
-module μOps (info : ArchInfo) where
+module μOps where
 
-open import Memory (ArchInfo.wordSize info)
+open import Memory
 
 data μType : Set where
   τ-bv : ℕ → μType

@@ -1,18 +1,18 @@
 open import Arch using (ArchInfo)
+open import Info
+module Semantics where
 
-module Semantics (info : ArchInfo) where
-
-open import Process info using (Process; Live; Halted)
+open import Process using (Process; Live; Halted)
 open import Data.Nat as Nat using (ℕ; _⊔_; _≤_)
 open import Data.Nat.Base as NatBase using ()
 open import Data.Vec as Vec using (Vec; _[_]≔_; lookup) renaming (_∷_ to _v∷_)
 open import Data.List using (List; _++_; []; _∷_)
 open import Data.Fin as Fin using (Fin)
-open import Disassembly info
+open import Disassembly
 open import Data.Product using (_,_)
-open import Memory (ArchInfo.wordSize info)
+open import Memory
 open import Data.Maybe
-open import μOps info
+open import μOps
 open import Data.Bool
 open import Data.BitVector as BitVector using (Bit; BitVector; zero)
 
@@ -101,24 +101,32 @@ data _↝⟨_⟩_#_ where
 
 data _↝⟨_⟩*_#_ where
   ↝-done : ∀ {p} → p ↝⟨ [] ⟩* p # Maybe.nothing
-  ↝-halted : ∀ {p₀ p₁} {insn} {insns} {tgt} → Halted p₁ → p₀ ↝⟨ insn ⟩ p₁ # tgt → p₀ ↝⟨ insn ∷ insns ⟩* p₁ # Maybe.nothing
+  ↝-halted : ∀ {p} {insns} → Halted p → p ↝⟨ insns ⟩* p # Maybe.nothing
   ↝-step : ∀ {p₀ p₁ p₂} {insn} {insns} {tgt} {_ : Live p₀} → p₀ ↝⟨ insn ⟩ p₁ # Maybe.nothing → p₁ ↝⟨ insns ⟩* p₂ # tgt → p₀ ↝⟨ insn ∷ insns ⟩* p₂ # tgt
   ↝-esc  : ∀ {p₀ p₁} {insn} {insns} {tgt} {_ : Live p₀} → p₀ ↝⟨ insn ⟩ p₁ # Maybe.just tgt → p₀ ↝⟨ insn ∷ insns ⟩* p₁ # Maybe.just tgt
 
+data InsnDone : Process → Set where
+  proc-done : ∀ {p} → InsnDone record p {insn = []}
+
 data _↝_ : Process → Process → Set where
-  ↝-fall : ∀ {p p'} {insns} {pc'}
+  ↝-μStep : ∀ {p p'} {insn} {insns}
+          → Live p
+          → p ↝⟨ insn ⟩ p' # Maybe.nothing
+          → record p {insn = insn ∷ insns} ↝ record p' {insn = insns}
+  ↝-fall : ∀ {p} {insns} {pc'}
          → Live p
-         → (Process.disassembly p) ⟦ Process.pc p ↦⟨ insns , pc' ⟩⟧
-         → p ↝⟨ insns ⟩* p' # Maybe.nothing
-         → p ↝ record p' { pc = pc' }
-  ↝-jump : ∀ {p p'} {insns} {pc'} {dc}
+         → InsnDone p
+         → (Process.disassembly p) ⟦ Process.fall p ↦⟨ insns , pc' ⟩⟧
+         → p ↝ record p { pc = Process.fall p; fall = pc'; insn = insns }
+  ↝-jump : ∀ {p p'} {insn} {rest} {insns} {pc'} {fall}
          → Live p
-         → (Process.disassembly p) ⟦ Process.pc p ↦⟨ insns , dc ⟩⟧
-         → p ↝⟨ insns ⟩* p' # Maybe.just pc'
-         → p ↝ record p' { pc = pc' }
+         → (Process.disassembly p) ⟦ pc' ↦⟨ insns , fall ⟩⟧
+         → p ↝⟨ insn ⟩ p' # Maybe.just pc'
+         → record p {insn = insn ∷ rest} ↝ record p' { pc = pc'; fall = fall; insn = insns}
 
 --Any process which takes a step is live
 live-step : ∀ {p p' : Process} → p ↝ p' → Live p
+live-step (↝-μStep live _) = live
 live-step (↝-fall live _ _) = live
 live-step (↝-jump live _ _) = live
 

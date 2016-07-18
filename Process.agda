@@ -8,22 +8,26 @@ open import Data.Product using (Σ; _×_)
 open import Relation.Nullary using (¬_)
 open import Data.List using (List)
 open import Relation.Binary using (StrictTotalOrder)
+open import μOps
 open import Value
 
-module Process (info : ArchInfo) where
+module Process where
+open import Info
 
 Word = BitVector (ArchInfo.wordSize info)
 Flag = BitVector 1
 
-open import Disassembly info using (Disassembly)
+open import Disassembly using (Disassembly)
 
 record Process : Set where
   field
     registers : Vec Word  (ArchInfo.numRegs info)
     flags : Vec Flag (ArchInfo.numFlags info)
     pc : Word
+    fall : Word
+    insn : List μInsn
     disassembly : Disassembly
-    memory : Memory (ArchInfo.wordSize info)
+    memory : Memory
     halted : Bool
 
 Halted : Process → Set
