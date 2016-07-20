@@ -15,9 +15,7 @@ open import Data.Maybe
 open import μOps
 open import Data.Bool
 open import Data.BitVector as BitVector using (Bit; BitVector; zero)
-
-wordSize : ℕ
-wordSize = ArchInfo.wordSize info
+open ArchInfo info
 
 --TODO this definition needs to be killed
 μUndef : ∀ {n} → μVal (τ-bv n)
@@ -81,6 +79,9 @@ mergeVec : ∀ {m n} {A : Set} {lt : m ≤ n} → Vec A n → Vec A m → Vec A 
 mergeVec {lt = Nat.s≤s lt} (x v∷ xs) (y v∷ ys) = y v∷ mergeVec {lt = lt} xs ys
 mergeVec xs Vec.[] = xs
 
+setReg : Process → Fin numRegs → (l : Fin (ℕ.suc wordSize)) → μVal (τ-bv (Fin.toℕ l)) → Process
+setReg p r len val = record p { registers = (Process.registers p) [ r ]≔ (mergeVec {lt = fin-lt len} (lookup r (Process.registers p)) (μBits val)) }
+
 data _↝⟨_⟩_#_ : Process → μInsn → Process → Maybe Word → Set
 data _↝⟨_⟩*_#_ : Process → List μInsn → Process → Maybe Word → Set
 data _↝⟨_⟩_#_ where
@@ -88,7 +89,7 @@ data _↝⟨_⟩_#_ where
   ↝-move-reg : ∀ {p} {n} {r} {expr} {val}
              → p ⊢ expr ⇝ val
              → p ↝⟨ move {τ-bv (Fin.toℕ n)} (reg r n) expr ⟩
-                 record p { registers = (Process.registers p) [ r ]≔ (mergeVec {lt = fin-lt n} (lookup r (Process.registers p)) (μBits val)) } # Maybe.nothing
+                 setReg p r n val # Maybe.nothing
   ↝-move-mem : ∀ {p} {expr} {val}
              → p ⊢ expr ⇝ val
              → p ↝⟨ move {τ-mem} mem expr ⟩ record p { memory = μMem val } # Maybe.nothing
@@ -109,10 +110,14 @@ data InsnDone : Process → Set where
   proc-done : ∀ {p} → InsnDone record p {insn = []}
 
 data _↝_ : Process → Process → Set where
+  {-
+   TODO the fall setting shouldn't be necessary in the constructor
+   It's there to make some proofs easier, for now, but it should be derivable by looking at the second term passed to μStep
+  -}
   ↝-μStep : ∀ {p p'} {insn} {insns}
           → Live p
           → p ↝⟨ insn ⟩ p' # Maybe.nothing
-          → record p {insn = insn ∷ insns} ↝ record p' {insn = insns}
+          → record p {insn = insn ∷ insns} ↝ record p' {insn = insns; fall = Process.fall p}
   ↝-fall : ∀ {p} {insns} {pc'}
          → Live p
          → InsnDone p

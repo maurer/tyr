@@ -1,50 +1,45 @@
 open import Arch
 open import Info
 open ArchInfo info
-
-module _ where
-  open import Data.Fin hiding (_<_)
-  open import Data.Nat
-
-  FlagId = Fin numFlags
-  fidNeg : FlagId
-  fidNeg = raise 3 (fromℕ 0)
-  fidZero : FlagId
-  fidZero = raise 2 (fromℕ 1)
-  fidCarry : FlagId
-  fidCarry = raise 1 (fromℕ 2)
-  fidOverflow : FlagId
-  fidOverflow = fromℕ 3
-
-  RegId = Fin numRegs
-  rid0  : RegId
-  rid0  = raise 15 (fromℕ 0)
-  rid3  : RegId
-  rid3  = raise 12 (fromℕ 3)
-  rid11 : RegId
-  rid11 = raise 4 (fromℕ 11)
-  rid13 : RegId
-  rid13 = raise 2 (fromℕ 13)
-  rid14 : RegId
-  rid14 = raise 1 (fromℕ 14)
-  ridSp : RegId
-  ridSp = rid13
-  ridLr : RegId
-  ridLr = rid14
-
-  open import μOps info
-
-  ridToVar : RegId → Var (τ-bv wordSize)
-  ridToVar rid = reg rid (fromℕ wordSize)
-
-open import μOps info
+open import μOps
 open import Data.List
 open import Data.Integer
 open import Data.BitVector renaming (-_ to b-_)
 open import Data.Nat using (ℕ; suc)
 open import Data.Sign using (Sign)
-open import Data.BitVector.Peano using (fromℕ; toℕ)
+open import Data.BitVector.Peano using (toℕ) renaming (fromℕ to peanoFromℕ)
 open import Data.Vec as Vec using ()
+
+open import Data.Fin hiding (_<_; #_; toℕ; zero)
+open import Process
+
+FlagId = Fin numFlags
+fidNeg : FlagId
+fidNeg = raise 3 (fromℕ 0)
+fidZero : FlagId
+fidZero = raise 2 (fromℕ 1)
+fidCarry : FlagId
+fidCarry = raise 1 (fromℕ 2)
+fidOverflow : FlagId
+fidOverflow = fromℕ 3
+
+RegId = Fin numRegs
+rid0  : RegId
+rid0  = raise 15 (fromℕ 0)
+rid3  : RegId
+rid3  = raise 12 (fromℕ 3)
+rid11 : RegId
+rid11 = raise 4 (fromℕ 11)
+rid13 : RegId
+rid13 = raise 2 (fromℕ 13)
+rid14 : RegId
+rid14 = raise 1 (fromℕ 14)
+ridSp : RegId
+ridSp = rid13
+ridLr : RegId
+ridLr = rid14
+ridToVar : RegId → Var (τ-bv wordSize)
+ridToVar rid = reg rid (fromℕ wordSize)
 
 {-
 int main (int argc) {
@@ -81,8 +76,8 @@ $_ = evar
 -- This is only a convenience notation - if the input is out of bounds, behavior is dumb
 fromℤ : ∀ {n} → ℤ → BitVector n
 fromℤ {l} i with signAbs i
-fromℤ .(Sign.- ◃ n) | Sign.- ◂ n = b- (fromℕ n)
-fromℤ .(Sign.+ ◃ n) | Sign.+ ◂ n = fromℕ n
+fromℤ .(Sign.- ◃ n) | Sign.- ◂ n = b- (peanoFromℕ n)
+fromℤ .(Sign.+ ◃ n) | Sign.+ ◂ n = peanoFromℕ n
 
 #_ : ∀ {n} → ℤ → Expr (τ-bv n)
 #_ {len} val = imm (fromℤ {len} val)
@@ -112,8 +107,6 @@ main =
   jmp ($ lr) ∷
   []
 
-open import Process info
-
 scaffoldSema : Word → Word → Word → List μInsn
 scaffoldSema mainAddr haltAddr stackAddr =
   move lr (imm haltAddr) ∷
@@ -124,26 +117,26 @@ scaffoldSema mainAddr haltAddr stackAddr =
 open import Data.Bool as Bool using ()
 
 mainLoadAddr : Word
-mainLoadAddr = fromℕ 0x8000
+mainLoadAddr = peanoFromℕ 0x8000
 
 startLoadAddr : Word
-startLoadAddr = fromℕ 0x1000
+startLoadAddr = peanoFromℕ 0x1000
 
 haltLoadAddr : Word
-haltLoadAddr = fromℕ 0
+haltLoadAddr = peanoFromℕ 0
 
 stackLoadAddr : Word
-stackLoadAddr = fromℕ 0xFFFFFFFF
+stackLoadAddr = peanoFromℕ 0xFFFFFFFF
 
 stackBaseAddr : Word
-stackBaseAddr = fromℕ 0xF0000000
+stackBaseAddr = peanoFromℕ 0xF0000000
 
 open import Data.Nat as Nat using ()
 
 stackLen : ℕ
 stackLen = (toℕ stackLoadAddr) Nat.+ (toℕ stackBaseAddr) Nat.+ 1
 
-open import Disassembly info
+open import Disassembly
 open import Data.Maybe as Maybe
 open import Data.Product
 
@@ -174,12 +167,8 @@ scaffold main = record {
 sample : Process
 sample = scaffold main
 
-open import Typing info
-sampleSafety : SafeProcess sample
-sampleSafety = {!!}
+--sampleSafety : SafeProcess sample
+--sampleSafety = ?
 
-open import Semantics info
-open import Safety info
-open import Data.Sum
-samplePolicy : ∀ {future} → sample ↝* future → Steps future ⊎ Halted future
-samplePolicy = safety sampleSafety
+--samplePolicy : ∀ {future} → sample ↝* future → Steps future ⊎ Halted future
+--samplePolicy = safety sampleSafety
