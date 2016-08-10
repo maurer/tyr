@@ -11,7 +11,7 @@ open import Data.BitVector using (zero)
 open import Data.BitVector.Peano renaming (fromℕ to word; toℕ to projWord)
 open import Data.Bool
 import Data.Vec as Vec
-open import Data.Vec using (Vec)
+open import Data.Vec using (Vec) renaming (_∷_ to _v∷_)
 open import Disassembly using (Disassembly)
 open import Data.Maybe
 import Data.Fin as Fin
@@ -90,3 +90,47 @@ module SimpleHalt where
   certificate : SafeProcess process
   certificate = typed-machine (λ z → z) (partial-done heap-nil) (⊤-regs (Process.registers process) []) (safe-code-step (steptype-reg eτ-imm-num) safe-code-halt)
 
+-- Fallthrough
+module SimpleFall where
+  entryAddr : Word
+  entryAddr = word 1
+
+  simpleOp : (List μInsn × Word)
+  simpleOp = [ move (reg Fin.zero (Fin.fromℕ 32)) (imm (word 0)) ] , word 2
+
+  halter : (List μInsn × Word)
+  halter = [ halt ] , word 3
+
+  disasm : Disassembly
+  disasm index with projWord index
+  ... | 1 = Maybe.just simpleOp
+  ... | 2 = Maybe.just halter
+  ... | _ = Maybe.nothing
+
+  process : Process
+  process = record {
+      registers = Vec.replicate (zero wordSize);
+      flags = Vec.replicate (zero 1);
+      pc = entryAddr;
+      disassembly = disasm;
+      memory = [];
+      halted = false;
+      fall = word 2;
+      insn = proj₁ simpleOp
+    }
+
+  heapType : HeapType
+  heapType = (hl-const (word 1) , τ-code (Vec.replicate τ-⊤))
+           ∷ (hl-const (word 2) , τ-code ((τ-num wordSize) v∷ (Vec.replicate τ-⊤)))
+           ∷ []
+
+  open import Data.List.Any using (here; there)
+
+  heapTyping : TypedHeap [] disasm heapType
+  heapTyping =
+    partial-done (heap-const-code
+                  (heap-const-code heap-nil (Disassembly.disas-known disasm refl) safe-code-halt)
+                  (Disassembly.disas-known disasm refl) (safe-code-step (steptype-reg eτ-imm-num) (safe-code-fall (eτ-imm-ht (there (here refl))))))
+
+  certificate : SafeProcess process
+  certificate = typed-machine (λ z → z) heapTyping (⊤-regs (Process.registers process) heapType) (safe-code-step (steptype-reg eτ-imm-num) (safe-code-fall (eτ-imm-ht (there (here refl)))))
