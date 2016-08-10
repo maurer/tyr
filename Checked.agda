@@ -17,8 +17,18 @@ open import Data.Maybe
 import Data.Fin as Fin
 
 module Checked where
+import Data.Nat as Nat
+open import Relation.Binary
+open DecTotalOrder Nat.decTotalOrder using () renaming (refl to ≤-refl)
+import Data.BitVector as BV
+open import Relation.Binary.PropositionalEquality using (refl; subst)
+reg-⊤ : ∀ {v : Word} {ht} {d} → TypedRegister v ht d τ-⊤
+reg-⊤ {v} {ht} {d} =
+  subst (λ v → TypedRegister v ht d τ-⊤)
+        (mergeVecFullEq {lt = ≤-refl} {v = zeroWord} {v' = v})
+        (reg-direct {v = v} {lt = ≤-refl} {b = zeroWord} ~⊤)
 
-⊤-regs : ∀ {len} → (regs : Vec Word len) → (ht : HeapType) → TypedRegisters regs ht (Vec.replicate τ-⊤)
+⊤-regs : ∀ {len} {disas} → (regs : Vec Word len) → (ht : HeapType) → TypedRegisters regs ht disas (Vec.replicate τ-⊤)
 ⊤-regs Vec.[] _ = regs-nil
 ⊤-regs (v Vec.∷ vs) ht = regs-cons reg-⊤ (⊤-regs vs ht)
 
@@ -48,7 +58,7 @@ module TrivialHalt where
     }
 
   certificate : SafeProcess process
-  certificate = typed-machine (λ x → x) heap-nil (⊤-regs (Process.registers process) ht-none) safe-code-halt
+  certificate = typed-machine (λ x → x) (partial-done heap-nil) (⊤-regs (Process.registers process) []) safe-code-halt
 
 -- Safe register operations, then a halt
 module SimpleHalt where
@@ -78,5 +88,5 @@ module SimpleHalt where
     }
 
   certificate : SafeProcess process
-  certificate = typed-machine (λ z → z) heap-nil (⊤-regs (Process.registers process) ht-none) (safe-code-step (steptype-reg eτ-imm-num) safe-code-halt)
+  certificate = typed-machine (λ z → z) (partial-done heap-nil) (⊤-regs (Process.registers process) []) (safe-code-step (steptype-reg eτ-imm-num) safe-code-halt)
 
