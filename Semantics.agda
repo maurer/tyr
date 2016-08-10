@@ -3,13 +3,14 @@ open import Info
 module Semantics where
 
 open import Process using (Process; Live; Halted)
-open import Data.Nat as Nat using (ℕ; _⊔_; _≤_)
+open import Data.Nat as Nat using (ℕ; _⊔_; _≤_; suc)
 open import Data.Nat.Base as NatBase using ()
 open import Data.Vec as Vec using (Vec; _[_]≔_; lookup) renaming (_∷_ to _v∷_)
 open import Data.List using (List; _++_; []; _∷_)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; cong₂)
 open import Data.Fin as Fin using (Fin)
 open import Disassembly
-open import Data.Product using (_,_)
+open import Data.Product using (_,_; _×_)
 open import Memory
 open import Data.Maybe
 open import μOps
@@ -79,14 +80,17 @@ mergeVec : ∀ {m n} {A : Set} {lt : m ≤ n} → Vec A n → Vec A m → Vec A 
 mergeVec {lt = Nat.s≤s lt} (x v∷ xs) (y v∷ ys) = y v∷ mergeVec {lt = lt} xs ys
 mergeVec xs Vec.[] = xs
 
+mergeVecFullEq : ∀ {n} {A} {lt} {v v'} → mergeVec {n} {n} {A} {lt} v v' ≡ v'
+mergeVecFullEq {n = 0} {lt = Nat.z≤n} {v = Vec.[]} {Vec.[]} = refl
+mergeVecFullEq {n = suc n} {lt = Nat.s≤s lt} {v = x v∷ v} {v' = x' v∷ v'} =
+  cong₂ _v∷_ refl (mergeVecFullEq {lt = lt})
+
 setReg : Process → Fin numRegs → (l : Fin (ℕ.suc wordSize)) → μVal (τ-bv (Fin.toℕ l)) → Process
 setReg p r len val = record p { registers = (Process.registers p) [ r ]≔ (mergeVec {lt = fin-lt len} (lookup r (Process.registers p)) (μBits val)) }
 
-data _↝⟨_⟩_#_ : Process → μInsn → Process → Maybe Word → Set
-data _↝⟨_⟩*_#_ : Process → List μInsn → Process → Maybe Word → Set
-data _↝⟨_⟩_#_ where
+data _↝⟨_⟩_#_ : Process → μInsn → Process → Maybe Word → Set where
   ↝-halt : ∀ {p} → p ↝⟨ halt ⟩ record p {halted = true} # Maybe.nothing
-  ↝-move-reg : ∀ {p} {n} {r} {expr} {val}
+  ↝-move-reg : ∀ {p} {n} {r} {expr : Expr (τ-bv (Fin.toℕ n))} {val}
              → p ⊢ expr ⇝ val
              → p ↝⟨ move {τ-bv (Fin.toℕ n)} (reg r n) expr ⟩
                  setReg p r n val # Maybe.nothing
@@ -100,11 +104,10 @@ data _↝⟨_⟩_#_ where
         → p ⊢ expr ⇝ target
         → p ↝⟨ jmp expr ⟩ p # Maybe.just (μBits target)
 
-data _↝⟨_⟩*_#_ where
-  ↝-done : ∀ {p} → p ↝⟨ [] ⟩* p # Maybe.nothing
-  ↝-halted : ∀ {p} {insns} → Halted p → p ↝⟨ insns ⟩* p # Maybe.nothing
-  ↝-step : ∀ {p₀ p₁ p₂} {insn} {insns} {tgt} {_ : Live p₀} → p₀ ↝⟨ insn ⟩ p₁ # Maybe.nothing → p₁ ↝⟨ insns ⟩* p₂ # tgt → p₀ ↝⟨ insn ∷ insns ⟩* p₂ # tgt
-  ↝-esc  : ∀ {p₀ p₁} {insn} {insns} {tgt} {_ : Live p₀} → p₀ ↝⟨ insn ⟩ p₁ # Maybe.just tgt → p₀ ↝⟨ insn ∷ insns ⟩* p₁ # Maybe.just tgt
+jmp-to-target : ∀ {p} {p'} {i} {pc'}
+              → p ↝⟨ jmp (imm i) ⟩ p' # Maybe.just pc'
+              → (i ≡ pc') × (p ≡ p')
+jmp-to-target (↝-jmp eval-imm) = refl , refl
 
 data InsnDone : Process → Set where
   proc-done : ∀ {p} → InsnDone record p {insn = []}
