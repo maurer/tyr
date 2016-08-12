@@ -1,3 +1,13 @@
+-- This module is intended to model a system's memory via the Read and Write
+-- predicates. The internal representation is very much in flux, and is probably
+-- not yet in a good place.
+
+-- At the moment, the primary thing this module provides is an existing Memory
+-- type along with Read and Write predicates to act as placeholders in other
+-- rules.
+
+-- TODO: Actually implement Read/Write, non-overlapping segments
+
 open import Data.BitVector using (BitVector; _+_; -_; one)
 open import Data.BitVector.NumericOrder using (_≤_)
 open import Data.BitVector.Peano using (toℕ; fromℕ)
@@ -7,61 +17,57 @@ open import Data.Nat using (ℕ; _≤?_; z≤n) renaming (_+_ to _ℕ+_; _<_ to 
 open import Data.Nat.DivMod using (_div_)
 open import Data.Vec using (Vec; lookup; _++_)
 open import Data.List using (List; _∷_)
-open import Value
 import Data.Maybe as Maybe
 
 open import Info
-open import Arch
 
-module Memory  where
+module Memory where
 
-  width = ArchInfo.wordSize info
+-- We assume the memory address bus is the same size as the GPR
+width = wordSize
+Addr = BitVector width
 
-  byteWidth : ℕ
-  byteWidth = 8
+-- A byte is the minimum readable size from memory, 8 bits
+byteWidth = 8
+Byte = BitVector byteWidth
 
-  Byte = BitVector byteWidth
+-- Perms is the permissions for a given memory segment. Since we do not
+-- currently support writing to a code segment, WX is not present.
+data Perms : Set where
+  RX : Perms
+  RW : Perms
+  RO : Perms
 
-  Addr = BitVector width
+-- The Readable/Writable/Executable predicates are abstractions over the
+-- structure of Perms to avoid casing out.
+data Readable : Perms → Set where
+  readable-all : ∀ {p} → Readable p
 
-  data Perms : Set where
-    RX : Perms
-    RW : Perms
-    RO : Perms
+data Writable : Perms → Set where
+  writable-rw : Writable RW
 
-  data Readable : Perms → Set where
-    readable-all : ∀ {p} → Readable p
+data Executable : Perms → Set where
+  executable-rx : Executable RX
 
-  data Writable : Perms → Set where
-    writable-rw : Writable RW
+-- A Segment is a base address, segment contents, and permissions
+data Segment : Set where
+  seg : Addr → (n : ℕ) → Vec Byte n → Perms → Segment
 
-  data Executable : Perms → Set where
-    executable-rx : Executable RX
+-- Memory is a list of segments, which do not overlap
+-- The non-overlapping is not yet encoded, which is part of why this module
+-- is not fully functional yet
+Memory = List Segment
 
-  data Segment : Set where
-    seg : Addr → (n : ℕ) → Vec Byte n → Perms → Segment
+-- ReadSeg indicates that you can perform a read of a segment and get a given
+-- result, while within bounds
+data ReadSeg : Segment → Addr → (len : ℕ) → BitVector len → Set where
 
-  Memory = List Segment
+-- As ReadSeg, but for a Memory
+data Read : Memory → Addr → (len : ℕ) → BitVector len → Set where
 
-  data ReadSeg : Segment → Addr → (len : ℕ) → BitVector len → Set where
-    read-seg-byte : ∀ {base : Addr} {segLen : ℕ} {dat} {perm} {addr} {base}
-                  → Readable perm
-                  → (lower : base ≤ addr)
-                  → (upper :  toℕ (addr + - base) ℕ< segLen)
-                  → ReadSeg (seg base segLen dat perm) addr byteWidth (lookup (fromℕ≤ upper) dat)
+-- WriteSeg indicates that a write is in bounds for a segment, and that after
+-- the write, the new segment in the predicate will be the result
+data WriteSeg : Segment → Addr → (len : ℕ) → BitVector len → Segment → Set where
 
-  data Read : Memory → Addr → (len : ℕ) → BitVector len → Set where
-    read-expand : ∀ {seg} {mem} {addr} {len} {dat}
-                → Read mem addr len dat
-                → Read (seg ∷ mem) addr len dat
-    read-head : ∀ {seg} {segs} {addr} {len} {dat}
-              → ReadSeg seg addr len dat
-              → Read (seg ∷ segs) addr len dat
-    read-concat : ∀ {m} {addr} {len₀ len₁} {bits₀ : BitVector len₀} {bits₁ : BitVector len₁}
-                → Read m addr len₀ bits₀
-                → Read m (addr + fromℕ (len₀ div byteWidth)) len₁ bits₁
-                → Read m addr (len₀ ℕ+ len₁) (bits₀ ++ bits₁)
-
-  data WriteSeg : Segment → Addr → (len : ℕ) → BitVector len → Memory → Set where
-
-  data Write : Memory → Addr → (len : ℕ) → BitVector len → Memory → Set where
+-- As WriteSeg, but for a Memory
+data Write : Memory → Addr → (len : ℕ) → BitVector len → Memory → Set where
