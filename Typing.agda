@@ -44,7 +44,7 @@ HeapEntry = HeapLoc × Type
 -- have to match the heap typing
 HeapType = List HeapEntry
 
-open Data.List.Any.Membership (peSetoid HeapEntry) using (_∈_)
+open import Data.List.Membership.Propositional using (_∈_)
 
 -- A typed register is a proof that a register value is a bitwise extension
 -- of a legal representation of a type.

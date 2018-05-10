@@ -20,15 +20,18 @@ open import Data.List.Any using (here; there) public
 open import Data.Integer using (+_; -_) public
 
 -- Pieces needed to construct helpers
-open import Data.Nat using (ℕ; suc)
+open import Data.Nat using (ℕ; _≤_)
 open import Data.Integer using (ℤ; -[1+_]; signAbs; _◃_; _◂_)
 open import Data.Sign using (Sign)
 open import Data.BitVector renaming (-_ to b-_)
 open import Relation.Binary.PropositionalEquality using (subst; _≡_)
 open import Relation.Binary using (DecTotalOrder)
-open DecTotalOrder Data.Nat.decTotalOrder using () renaming (refl to ≤-refl) 
 open import Data.Vec as Vec using (Vec)
 open import Data.Fin using (Fin; raise; fromℕ)
+
+≤-refl : ∀ {n : ℕ} → n ≤ n
+≤-refl {ℕ.zero} = _≤_.z≤n
+≤-refl {ℕ.suc n} = _≤_.s≤s ≤-refl
 
 -- Any value is a legal ⊤ in a register
 reg-⊤ : ∀ {v : Word} {ht} {d} → TypedRegister v ht d τ-⊤
@@ -52,7 +55,7 @@ trueFlag = Vec.[ true ]
 -- Convenience function to allow integer literals to be ℤ.
 fromNeg : (n : ℕ) → ℤ
 fromNeg 0 = + 0
-fromNeg (suc n) = -[1+ n ]
+fromNeg (ℕ.suc n) = -[1+ n ]
 
 -- This bit of magic tells Agda to use the above for parsing integer literals.
 {-# BUILTIN FROMNEG fromNeg #-}
